@@ -8,6 +8,7 @@ incrementing counters, merging duplicates, pruning harmful bullets — so
 the context itself evolves between runs.
 """
 
+from .brief import TaskBrief, render_brief
 from .curator import Curator, jaccard, tokenize
 from .persistence import (
     from_markdown,
@@ -21,12 +22,14 @@ from .playbook import SECTIONS, Bullet, Playbook
 from .reflector import Candidate, Reflector
 from .render import render_prompt
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "SECTIONS",
     "Bullet",
     "Playbook",
+    "TaskBrief",
+    "render_brief",
     "Curator",
     "jaccard",
     "tokenize",

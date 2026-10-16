@@ -83,6 +83,44 @@ save_playbook(playbook, "playbook.json")   # or "playbook.md"
 playbook = load_playbook("playbook.json")
 ```
 
+## Task briefs
+
+A playbook is standing knowledge; a **task brief** says what *this*
+run is for. Pass a `TaskBrief` to `render_prompt` and it is prepended
+to the rendered playbook as a header:
+
+```python
+from ace_in_a_box import TaskBrief, render_prompt
+
+brief = TaskBrief(
+    goal="Fix the tokenizer crash on empty input",
+    verify="the full test suite passes",
+    effort="a focused hour; stop and report if blocked",
+)
+prompt_context = render_prompt(playbook, brief=brief, max_tokens=2000)
+```
+
+The brief format follows the prompting formula shared by Anthropic's
+Boris Cherny — say what to do, how to verify it, and how much effort to
+spend — as reported in Zvi Mowshowitz's AI #190
+(https://thezvi.substack.com/p/ai-190-scion-of-the-times). Only the
+goal is required; `verify` and `effort` lines are omitted when not
+given.
+
+A brief is per-task and render-time only — it is **not** stored in the
+playbook file. It counts toward the render budget and is never dropped
+or truncated; when space runs out, playbook bullets are dropped
+instead, exactly as they are without a brief.
+
+From the CLI:
+
+```console
+$ ace render playbook.json --goal "Fix the tokenizer crash" \
+      --verify "the full test suite passes" --effort "a focused hour"
+```
+
+(`--verify` and `--effort` require `--goal`.)
+
 ## CLI
 
 The `ace` command (or `python -m ace_in_a_box`) manages a playbook file

@@ -8,6 +8,7 @@ degrades gracefully instead of being truncated mid-sentence.
 
 from __future__ import annotations
 
+from .brief import TaskBrief, render_brief
 from .playbook import Playbook
 
 #: Rough characters-per-token ratio used when a token budget is given.
@@ -35,29 +36,17 @@ def _assemble(playbook: Playbook, included_ids: set[str]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_prompt(
-    playbook: Playbook,
-    *,
-    max_chars: int | None = None,
-    max_tokens: int | None = None,
-) -> str:
-    """Render ``playbook`` for inclusion in a prompt.
-
-    ``max_tokens`` is converted to characters at ``CHARS_PER_TOKEN``
-    chars/token (a conservative approximation for English text); if both
-    budgets are given, the tighter one wins.  With no budget, every bullet
-    is rendered.  Bullets are *selected* by value (highest first) but
-    *displayed* grouped by section.
-    """
+def _budget_chars(max_chars: int | None, max_tokens: int | None) -> int | None:
+    """Resolve the two budget spellings to a single character budget."""
     budget = max_chars
     if max_tokens is not None:
         token_budget = max_tokens * CHARS_PER_TOKEN
         budget = token_budget if budget is None else min(budget, token_budget)
+    return budget
 
-    all_ids = {b.id for b in playbook.bullets}
-    if budget is None:
-        return _assemble(playbook, all_ids)
 
+def _render_with_budget(playbook: Playbook, budget: int) -> str:
+    """Render ``playbook``, dropping lowest-value bullets to fit ``budget``."""
     # Greedily keep highest-value bullets while the render fits the budget.
     ranked = sorted(playbook.bullets, key=lambda b: b.value_key(), reverse=True)
     kept: set[str] = set()
@@ -65,7 +54,7 @@ def render_prompt(
         trial = kept | {bullet.id}
         if len(_assemble(playbook, trial)) <= budget:
             kept = trial
-    dropped = len(all_ids) - len(kept)
+    dropped = len(playbook.bullets) - len(kept)
     if dropped:
         # Make room for the omission note itself: sacrifice the lowest-value
         # kept bullets until text + note fits the budget.
@@ -84,3 +73,40 @@ def render_prompt(
             text += note(dropped)
         return text
     return _assemble(playbook, kept)
+
+
+def render_prompt(
+    playbook: Playbook,
+    *,
+    brief: TaskBrief | None = None,
+    max_chars: int | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """Render ``playbook`` for inclusion in a prompt.
+
+    ``max_tokens`` is converted to characters at ``CHARS_PER_TOKEN``
+    chars/token (a conservative approximation for English text); if both
+    budgets are given, the tighter one wins.  With no budget, every bullet
+    is rendered.  Bullets are *selected* by value (highest first) but
+    *displayed* grouped by section.
+
+    When ``brief`` is given, its block (see :mod:`.brief`) is prepended
+    before the ``# Playbook`` body.  The brief counts toward the budget
+    and is never dropped or truncated: bullets are selected within
+    whatever budget the brief leaves behind.  If the brief alone exceeds
+    the budget, every bullet is dropped and the result is the brief
+    followed by the (empty) playbook header and — if it still fits — the
+    omission note covering all bullets.
+    """
+    budget = _budget_chars(max_chars, max_tokens)
+
+    all_ids = {b.id for b in playbook.bullets}
+    if brief is None:
+        if budget is None:
+            return _assemble(playbook, all_ids)
+        return _render_with_budget(playbook, budget)
+
+    prefix = render_brief(brief)
+    if budget is None:
+        return prefix + _assemble(playbook, all_ids)
+    return prefix + _render_with_budget(playbook, budget - len(prefix))

@@ -12,6 +12,8 @@ Examples::
     ace show playbook.json
     ace prune playbook.json --threshold -2 --max-bullets 100
     ace render playbook.json --max-chars 4000
+    ace render playbook.json --goal "Fix the parser" --verify "pytest passes" \
+        --effort "a focused hour; stop if blocked"
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from .brief import TaskBrief
 from .curator import Curator
 from .persistence import load_playbook, save_playbook, to_markdown
 from .playbook import Playbook
@@ -93,9 +96,24 @@ def _cmd_prune(args: argparse.Namespace) -> int:
 
 
 def _cmd_render(args: argparse.Namespace) -> int:
+    brief = None
+    if args.goal is not None:
+        try:
+            brief = TaskBrief(
+                goal=args.goal, verify=args.verify, effort=args.effort
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    elif args.verify is not None or args.effort is not None:
+        print("error: --verify and --effort require --goal", file=sys.stderr)
+        return 2
     playbook = _load(args.path)
     text = render_prompt(
-        playbook, max_chars=args.max_chars, max_tokens=args.max_tokens
+        playbook,
+        brief=brief,
+        max_chars=args.max_chars,
+        max_tokens=args.max_tokens,
     )
     print(text, end="")
     return 0
@@ -145,6 +163,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path")
     p.add_argument("--max-chars", type=int, default=None)
     p.add_argument("--max-tokens", type=int, default=None)
+    p.add_argument("--goal", default=None,
+                   help="task brief: what to do (enables the brief header)")
+    p.add_argument("--verify", default=None,
+                   help="task brief: how to verify the work (requires --goal)")
+    p.add_argument("--effort", default=None,
+                   help="task brief: how much effort to spend (requires --goal)")
     p.set_defaults(func=_cmd_render)
 
     return parser

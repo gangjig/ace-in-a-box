@@ -85,3 +85,47 @@ def test_cli_module_invocation(tmp_path):
     assert result.returncode == 0, result.stderr
     with open(path) as fh:
         assert json.load(fh) == {"version": 1, "bullets": []}
+
+
+def _playbook_with_bullet(tmp_path, capsys):
+    path = str(tmp_path / "playbook.json")
+    assert main(["init", path]) == 0
+    assert main(["add", path, "--content",
+                 "Run tests before committing"]) == 0
+    capsys.readouterr()
+    return path
+
+
+def test_cli_render_with_brief(tmp_path, capsys):
+    path = _playbook_with_bullet(tmp_path, capsys)
+    assert main(["render", path,
+                 "--goal", "Ship the fix",
+                 "--verify", "the test suite passes",
+                 "--effort", "one focused hour"]) == 0
+    out = capsys.readouterr().out
+    assert "# Task brief" in out
+    assert "**Goal:** Ship the fix" in out
+    assert "**Verify:** the test suite passes" in out
+    assert "**Effort:** one focused hour" in out
+    assert out.index("# Task brief") < out.index("Run tests before committing")
+
+
+def test_cli_render_goal_only_brief(tmp_path, capsys):
+    path = _playbook_with_bullet(tmp_path, capsys)
+    assert main(["render", path, "--goal", "Ship the fix"]) == 0
+    out = capsys.readouterr().out
+    assert "**Goal:** Ship the fix" in out
+    assert "**Verify:**" not in out
+    assert "**Effort:**" not in out
+
+
+def test_cli_render_verify_without_goal_is_usage_error(tmp_path, capsys):
+    path = _playbook_with_bullet(tmp_path, capsys)
+    assert main(["render", path, "--verify", "tests pass"]) == 2
+    assert "--goal" in capsys.readouterr().err
+
+
+def test_cli_render_effort_without_goal_is_usage_error(tmp_path, capsys):
+    path = _playbook_with_bullet(tmp_path, capsys)
+    assert main(["render", path, "--effort", "one hour"]) == 2
+    assert "--goal" in capsys.readouterr().err
