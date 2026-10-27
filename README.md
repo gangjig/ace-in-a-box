@@ -121,6 +121,64 @@ $ ace render playbook.json --goal "Fix the tokenizer crash" \
 
 (`--verify` and `--effort` require `--goal`.)
 
+## Monitor holdout: don't train against your own ruler
+
+A playbook that is always updated against the same eval set quietly
+overfits it: the score on those cases climbs while real performance
+stands still — the ruler goes dull, and nothing in the drive-set score
+tells you. The countermeasure is a **monitor holdout**, the same
+discipline Google states for its chain-of-thought monitors in the
+Gemini 4 Argon safety reporting — never train against the monitor —
+as covered in Zvi Mowshowitz's page-by-page read of the safety report
+(https://thezvi.substack.com/p/gemini-4-argon-the-model-and-safety).
+
+`ace_in_a_box.evalset` splits an eval set (JSONL, one case object with
+an `id` per line; other fields pass through to your runner) into a
+**drive** set and a **holdout** set by hashing `seed:case_id`. The
+split is deterministic, order-independent, and stable as the set
+grows: a case can never migrate between sets, so the holdout stays a
+clean measurement. Holdout outcomes must never feed the
+Reflector/Curator loop — a `HoldoutGuard` makes the common accident
+fail loudly at the call site:
+
+```python
+from ace_in_a_box import HoldoutGuard, load_cases, split_cases
+
+split = split_cases(load_cases("eval.jsonl"))      # 50/50 by default
+guard = HoldoutGuard(split)
+for case_id, trace, outcome in run_my_eval(split.drive):
+    guard.check(case_id)   # raises HoldoutLeakError for holdout ids
+    reflector.reflect(trace, outcome)
+```
+
+The guard is a call-site check, not a sandbox: ace-in-a-box does not
+run your tasks, so it cannot intercept code that never calls it. It
+catches the accidental leak, not a determined bypass.
+
+At release time, score both sets (scores JSONL: `{"id", "score",
+"run"}` — use `run` labels like `before`/`after` for an update) and
+compare them side by side:
+
+```console
+$ ace holdout report --cases eval.jsonl --scores scores.jsonl
+eval set: 20 case(s) — drive 8, holdout 12 (seed 'ace-holdout-v1', fraction 0.5)
+fingerprint: 37935f94193e48ab…
+run 'before': drive 0.500 (n=8)  holdout 0.500 (n=12)  gap +0.000
+run 'after':  drive 0.900 (n=8)  holdout 0.520 (n=12)  gap +0.380
+Δdrive +0.400  Δholdout +0.020
+WARNING: drive/holdout gap 0.380 exceeds --max-gap 0.1 — the playbook does
+  much better on cases it learns from than on cases it never sees
+```
+
+If the drive set improved but the holdout did not, the report prints
+an overfitting warning ("ruler going dull"); if both improved, the
+holdout confirms the gain. Every report appends one line to
+`holdout-ledger.jsonl` (eval-set fingerprint, per-run means, deltas,
+verdict), so a slowly dulling ruler shows up as history, not as a
+surprise at release time. The report gives means and gaps only — no
+significance tests; at eval-set sizes this small they would be false
+precision.
+
 ## CLI
 
 The `ace` command (or `python -m ace_in_a_box`) manages a playbook file
@@ -136,6 +194,8 @@ b-0001: helpful=1 harmful=0 net=+1
 $ ace show playbook.json          # print as Markdown
 $ ace prune playbook.json --threshold -2 --max-bullets 100 --merge-threshold 0.8
 $ ace render playbook.json --max-chars 4000   # prompt-ready text, budget-aware
+$ ace holdout report --cases eval.jsonl --scores scores.jsonl
+                                              # release gate: drive vs holdout
 ```
 
 ## Installation

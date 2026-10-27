@@ -10,6 +10,13 @@ the context itself evolves between runs.
 
 from .brief import TaskBrief, render_brief
 from .curator import Curator, jaccard, tokenize
+from .evalset import (
+    EvalSplit,
+    HoldoutGuard,
+    HoldoutLeakError,
+    load_cases,
+    split_cases,
+)
 from .persistence import (
     from_markdown,
     load_playbook,
@@ -22,7 +29,7 @@ from .playbook import SECTIONS, Bullet, Playbook
 from .reflector import Candidate, Reflector
 from .render import render_prompt
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "SECTIONS",
@@ -33,6 +40,11 @@ __all__ = [
     "Curator",
     "jaccard",
     "tokenize",
+    "EvalSplit",
+    "HoldoutGuard",
+    "HoldoutLeakError",
+    "split_cases",
+    "load_cases",
     "Reflector",
     "Candidate",
     "render_prompt",

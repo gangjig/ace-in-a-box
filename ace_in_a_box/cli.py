@@ -14,6 +14,7 @@ Examples::
     ace render playbook.json --max-chars 4000
     ace render playbook.json --goal "Fix the parser" --verify "pytest passes" \
         --effort "a focused hour; stop if blocked"
+    ace holdout report --cases eval.jsonl --scores scores.jsonl
 """
 
 from __future__ import annotations
@@ -24,6 +25,14 @@ from pathlib import Path
 
 from .brief import TaskBrief
 from .curator import Curator
+from .evalset import (
+    DEFAULT_SEED,
+    append_ledger,
+    build_report,
+    load_cases,
+    load_scores,
+    split_cases,
+)
 from .persistence import load_playbook, save_playbook, to_markdown
 from .playbook import Playbook
 from .render import render_prompt
@@ -119,6 +128,51 @@ def _cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_holdout_report(args: argparse.Namespace) -> int:
+    for label, path in (("cases", args.cases), ("scores", args.scores)):
+        if not Path(path).exists():
+            print(f"error: {label} file not found: {path}", file=sys.stderr)
+            return 2
+    try:
+        split = split_cases(
+            load_cases(args.cases),
+            seed=args.seed,
+            holdout_fraction=args.fraction,
+        )
+        report = build_report(split, load_scores(args.scores),
+                              max_gap=args.max_gap)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print(
+        f"eval set: {len(split.drive) + len(split.holdout)} case(s) — "
+        f"drive {len(split.drive)}, holdout {len(split.holdout)} "
+        f"(seed {split.seed!r}, fraction {split.holdout_fraction:g})"
+    )
+    print(f"fingerprint: {split.fingerprint}")
+    for run in report.runs:
+        label = f"run {run.run!r}: " if run.run else ""
+        print(
+            f"{label}drive {run.drive_mean:.3f} (n={run.drive_n})  "
+            f"holdout {run.holdout_mean:.3f} (n={run.holdout_n})  "
+            f"gap {run.gap:+.3f}"
+        )
+    if report.delta_drive is not None:
+        print(
+            f"Δdrive {report.delta_drive:+.3f}  "
+            f"Δholdout {report.delta_holdout:+.3f}"
+        )
+    for warning in report.warnings:
+        print(warning)
+    if not report.warnings:
+        print(report.verdict)
+    if not args.no_ledger:
+        append_ledger(args.ledger, report.ledger_entry())
+        print(f"ledger: appended to {args.ledger}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ace",
@@ -170,6 +224,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--effort", default=None,
                    help="task brief: how much effort to spend (requires --goal)")
     p.set_defaults(func=_cmd_render)
+
+    p = sub.add_parser(
+        "holdout",
+        help="monitor-holdout: score the cases the playbook never learns from",
+    )
+    holdout_sub = p.add_subparsers(dest="holdout_command", required=True)
+    pr = holdout_sub.add_parser(
+        "report",
+        help="report drive vs holdout scores side by side (release gate)",
+    )
+    pr.add_argument("--cases", required=True,
+                    help="eval set JSONL (one case object with an 'id' per line)")
+    pr.add_argument("--scores", required=True,
+                    help="scores JSONL ({'id', 'score' 0..1, optional 'run'})")
+    pr.add_argument("--seed", default=DEFAULT_SEED,
+                    help=f"split seed (default {DEFAULT_SEED})")
+    pr.add_argument("--fraction", type=float, default=0.5,
+                    help="holdout fraction (default 0.5)")
+    pr.add_argument("--max-gap", type=float, default=0.1,
+                    help="warn when the drive/holdout gap exceeds this "
+                         "(default 0.1)")
+    pr.add_argument("--ledger", default="holdout-ledger.jsonl",
+                    help="ledger file to append the verdict to "
+                         "(default holdout-ledger.jsonl)")
+    pr.add_argument("--no-ledger", action="store_true",
+                    help="do not append this report to the ledger")
+    pr.set_defaults(func=_cmd_holdout_report)
 
     return parser
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Added a **monitor holdout** for eval sets (`ace_in_a_box.evalset`),
+  so a playbook cannot quietly overfit the cases it is judged by:
+  `split_cases` deterministically hash-splits an eval set into a drive
+  set and a holdout set (a case's partition never changes),
+  `HoldoutGuard` raises `HoldoutLeakError` if a holdout case's outcome
+  is about to feed an update, and the new `ace holdout report` CLI
+  compares drive vs holdout scores side by side at release time —
+  warning when the drive set improves but the holdout does not — and
+  appends every verdict to `holdout-ledger.jsonl`. Inspired by
+  Google's stated practice of not training against its own monitors
+  in the Gemini 4 Argon safety reporting, as read by Zvi Mowshowitz.
+
 ## 0.2.0
 
 - Added an optional **task-brief header** for prompt rendering:
