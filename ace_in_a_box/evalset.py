@@ -336,8 +336,8 @@ def build_report(
         runs.append(
             RunMeans(
                 run=run,
-                drive_mean=sum(drive_scores) / len(drive_scores),
-                holdout_mean=sum(holdout_scores) / len(holdout_scores),
+                drive_mean=round(sum(drive_scores) / len(drive_scores), 10),
+                holdout_mean=round(sum(holdout_scores) / len(holdout_scores), 10),
                 drive_n=len(drive_scores),
                 holdout_n=len(holdout_scores),
             )
@@ -348,8 +348,8 @@ def build_report(
     ok_verdict: str | None = None
     warnings: list[str] = []
     if len(runs) >= 2:
-        delta_drive = runs[-1].drive_mean - runs[0].drive_mean
-        delta_holdout = runs[-1].holdout_mean - runs[0].holdout_mean
+        delta_drive = round(runs[-1].drive_mean - runs[0].drive_mean, 10)
+        delta_holdout = round(runs[-1].holdout_mean - runs[0].holdout_mean, 10)
         drive_up = delta_drive > _EPS
         holdout_up = delta_holdout > _EPS
         if drive_up and not holdout_up:
