@@ -248,6 +248,29 @@ tests) runs fully offline.
   wrong playbook. Human review of Reflector candidates is recommended
   before integration in serious use.
 
+## Build your own
+
+This repository is small enough to regenerate from a prompt. Paste the
+following into an LLM and it should produce a closely similar project:
+
+> Write a small, zero-dependency Python framework that implements the
+> ACE (Agentic Context Engineering) pattern: instead of fine-tuning a
+> model, let an agent's context be the thing that learns, as a
+> structured playbook of short bullet entries (strategies, domain facts,
+> failure modes, code snippets) that evolves after every task run. The
+> system has three roles: a generator, the user's own agent, which runs
+> with the playbook rendered into its prompt and produces a trace; a
+> reflector, which distills a trace and its outcome into candidate
+> lessons; and a curator, which does the deterministic bookkeeping:
+> applying helpful and harmful feedback to bullets, refining their text,
+> merging near-duplicates, pruning bullets whose net score falls below a
+> threshold, and capping the playbook size. The playbook itself stays
+> plain, inspectable data, so a human can read exactly what the agent
+> has learned and why. Ship a rule-based reflector that works with no
+> model call at all, an optional pluggable LLM callable for richer
+> distillation, and a monitor-holdout discipline so the playbook is
+> never scored against the same ruler it trained on.
+
 ## License
 
 MIT © 2026 Gang Ji
