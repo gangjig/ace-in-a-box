@@ -26,10 +26,10 @@ from .persistence import (
     to_markdown,
 )
 from .playbook import SECTIONS, Bullet, Playbook
-from .reflector import Candidate, Reflector
+from .reflector import Candidate, Reflector, needs_quarantine
 from .render import render_prompt
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "SECTIONS",
@@ -47,6 +47,7 @@ __all__ = [
     "load_cases",
     "Reflector",
     "Candidate",
+    "needs_quarantine",
     "render_prompt",
     "save_playbook",
     "load_playbook",

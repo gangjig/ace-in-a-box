@@ -45,6 +45,24 @@ class Curator:
         )
         return self.playbook.insert(bullet)
 
+    def add_candidate(self, candidate, *, confirm_quarantined: bool = False) -> Bullet:
+        """Integrate one Reflector candidate into the playbook.
+
+        This is the review gate for trace-derived content.  A
+        *quarantined* candidate (see ``reflector.needs_quarantine``)
+        is refused with ``ValueError`` unless the caller passes
+        ``confirm_quarantined=True`` — that flag is the human's
+        explicit confirmation that they read the candidate and accept
+        it despite the flag.  Unflagged candidates integrate directly.
+        """
+        if getattr(candidate, "quarantined", False) and not confirm_quarantined:
+            raise ValueError(
+                "candidate is quarantined and needs human confirmation: "
+                f"{candidate.content!r} (pass confirm_quarantined=True "
+                "to integrate it anyway)"
+            )
+        return self.add_bullet(candidate.section, candidate.content)
+
     def refine_bullet(self, bullet_id: str, new_content: str) -> Bullet:
         """Rewrite a bullet's text (counters and history are preserved)."""
         bullet = self.playbook.get(bullet_id)

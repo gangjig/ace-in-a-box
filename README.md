@@ -60,9 +60,11 @@ trace = [
 ]
 outcome = {"success": False}
 
-# The Reflector proposes new bullets from the trace:
+# The Reflector proposes new bullets from the trace. Integrate them
+# through add_candidate: quarantined candidates (see below) raise
+# until a human confirms them.
 for candidate in Reflector().reflect(trace, outcome):
-    curator.add_bullet(candidate.section, candidate.content)
+    curator.add_candidate(candidate)
 
 # Feedback from the run updates bullet counters:
 curator.apply_feedback(b.id, helpful=True)
@@ -82,6 +84,34 @@ from ace_in_a_box import load_playbook, save_playbook
 save_playbook(playbook, "playbook.json")   # or "playbook.md"
 playbook = load_playbook("playbook.json")
 ```
+
+## Trace content is untrusted
+
+A trace is not the agent's diary — observations are tool output, web
+pages and other outside text, and any field can carry a directive
+disguised as a lesson ("thought injection"): text that, once distilled
+into the playbook, is re-injected into every future run's prompt.
+ace-in-a-box treats that as a poisoning surface:
+
+- **The LLM reflector prompt fences observations.** Each step is
+  rendered field by field, and the observation is wrapped in
+  `BEGIN/END UNTRUSTED TOOL OUTPUT` delimiters with instructions to
+  treat it as evidence, never as instructions to copy into a bullet.
+- **Every candidate records its `source`** (`lesson`, `error`,
+  `outcome` or `llm`), so a bullet's origin stays auditable.
+- **Sensitive directives are quarantined.** `needs_quarantine`
+  screens candidate text for directives that move sensitive material
+  (keys, credentials, tokens, …) to an outside destination, or use
+  inherently illicit verbs ("exfiltrate"). A flagged candidate gets
+  `quarantined=True`, and `Curator.add_candidate` refuses it unless
+  the caller passes `confirm_quarantined=True` — the human's explicit
+  "I read this and accept it".
+- **The screen is a tripwire, not a guarantee.** It is a deterministic
+  word-level heuristic: paraphrases, obfuscation and split directives
+  can walk past it. It exists to decide what *must* get a second look,
+  and the gate is the flag plus human confirmation. Direct
+  `Curator.add_bullet` / `Playbook.insert` calls are the operator's
+  own deliberate writes and are not gated.
 
 ## Task briefs
 
@@ -246,7 +276,9 @@ tests) runs fully offline.
 - **Feedback quality is your problem.** Counters are only as good as the
   signal that increments them; garbage votes produce a confidently
   wrong playbook. Human review of Reflector candidates is recommended
-  before integration in serious use.
+  before integration in serious use — and for trace-derived candidates
+  it is enforced for quarantined ones (see "Trace content is
+  untrusted" above).
 
 ## Build your own
 

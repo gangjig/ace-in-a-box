@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0
+
+- Hardened the Reflector against **trace-content poisoning** (thought
+  injection): a trace is untrusted data, and a directive disguised as
+  a lesson could previously sail through reflection into the playbook
+  and be re-injected into every future prompt. Now the LLM reflector
+  prompt renders steps field by field and fences observations in
+  `BEGIN/END UNTRUSTED TOOL OUTPUT` delimiters with treat-as-evidence
+  instructions; every `Candidate` records its `source` (`lesson`,
+  `error`, `outcome`, `llm`); a new `needs_quarantine` screen flags
+  candidates whose text directs moving sensitive material (keys,
+  credentials, tokens) to an outside destination, marking them
+  `quarantined`; and the new `Curator.add_candidate` integration gate
+  refuses quarantined candidates unless a human passes
+  `confirm_quarantined=True`. The screen is documented as a review
+  tripwire, not a safety proof. Motivated by the thought-injection
+  results in arXiv:2611.08811.
+
 ## 0.3.0
 
 - Added a **monitor holdout** for eval sets (`ace_in_a_box.evalset`),
