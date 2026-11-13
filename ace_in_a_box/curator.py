@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+from .gate import VERDICT_ADOPT, FrozenCandidate, GateDecision
 from .playbook import Bullet, Playbook, clean_text, utcnow_iso
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -62,6 +63,35 @@ class Curator:
                 "to integrate it anyway)"
             )
         return self.add_bullet(candidate.section, candidate.content)
+
+    def adopt(
+        self, frozen: FrozenCandidate, decision: GateDecision
+    ) -> list[Bullet]:
+        """Integrate a frozen candidate set that passed the adoption gate.
+
+        This is the adoption half of the EGE discipline (see
+        ``ace_in_a_box.gate``): it integrates *only* when the decision
+        is ADOPT *and* its fingerprint matches the frozen text, so the
+        bullets entering the playbook are byte-for-byte the bullets
+        that were audited.  Anything else — a REJECT verdict, or a
+        decision made for different text — raises ValueError and the
+        playbook is left untouched.
+        """
+        if decision.verdict != VERDICT_ADOPT:
+            raise ValueError(
+                f"cannot adopt: gate verdict is {decision.verdict!r} "
+                f"({'; '.join(decision.reasons)})"
+            )
+        if decision.fingerprint != frozen.fingerprint:
+            raise ValueError(
+                "cannot adopt: decision fingerprint does not match the "
+                "frozen candidate — the audited text is not the text "
+                "being adopted"
+            )
+        return [
+            self.add_bullet(section, content)
+            for section, content in frozen.bullets
+        ]
 
     def refine_bullet(self, bullet_id: str, new_content: str) -> Bullet:
         """Rewrite a bullet's text (counters and history are preserved)."""

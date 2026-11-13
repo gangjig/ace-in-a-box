@@ -17,6 +17,19 @@ from .evalset import (
     load_cases,
     split_cases,
 )
+from .gate import (
+    VERDICT_ADOPT,
+    VERDICT_REJECT,
+    CanaryRollout,
+    CaseScore,
+    FrozenCandidate,
+    GateDecision,
+    GatePolicy,
+    PairedScore,
+    audit_pairs,
+    build_candidate_playbook,
+    run_audit,
+)
 from .persistence import (
     from_markdown,
     load_playbook,
@@ -29,7 +42,7 @@ from .playbook import SECTIONS, Bullet, Playbook
 from .reflector import Candidate, Reflector, needs_quarantine
 from .render import render_prompt
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "SECTIONS",
@@ -48,6 +61,17 @@ __all__ = [
     "Reflector",
     "Candidate",
     "needs_quarantine",
+    "VERDICT_ADOPT",
+    "VERDICT_REJECT",
+    "CanaryRollout",
+    "CaseScore",
+    "FrozenCandidate",
+    "GateDecision",
+    "GatePolicy",
+    "PairedScore",
+    "audit_pairs",
+    "build_candidate_playbook",
+    "run_audit",
     "render_prompt",
     "save_playbook",
     "load_playbook",

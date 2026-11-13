@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+- Added an **evidence-governed adoption gate** (`ace_in_a_box.gate`),
+  following the EGE discipline of arXiv:2611.16378: Reflector
+  candidates are frozen (`FrozenCandidate`, fingerprint-bound) and
+  audited on fresh paired cases (`run_audit` / `audit_pairs`) before
+  they may land. Adoption requires a mean paired gain of at least
+  `min_improvement` on the primary objective *and* a Hoeffding lower
+  confidence bound above zero, with each declared capability's mean
+  paired change held within `non_inferiority_margin`; audit cases
+  overlapping the cases the candidate was learned from are refused,
+  and quarantined content still needs human confirmation. Adopted
+  candidates integrate only through `Curator.adopt`, which verifies
+  the decision is ADOPT for the exact frozen text, and roll out
+  through `CanaryRollout` in bounded deterministic stages (10% →
+  50% → 100%). The capability check is mean-based by design (a
+  Hoeffding bound at realistic audit sizes would veto every
+  adoption); per-capability bounds are reported in the decision for
+  transparency.
+
 ## 0.4.0
 
 - Hardened the Reflector against **trace-content poisoning** (thought

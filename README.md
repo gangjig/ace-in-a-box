@@ -209,6 +209,70 @@ surprise at release time. The report gives means and gaps only — no
 significance tests; at eval-set sizes this small they would be false
 precision.
 
+## Adoption gate: prove a candidate earns its place
+
+The quarantine screen stops *poisonous* candidates. It says nothing
+about whether a *plausible* candidate actually helps: a lesson can
+fix the case it came from while quietly degrading everything else.
+The adoption gate (`ace_in_a_box.gate`) holds Reflector candidates to
+evidence before they land, following the Evidence-Governed Evolution
+(EGE) discipline of Lonkar's *Evidence-Governed Adoption of
+Self-Generated Updates in Autonomous AI Agents*
+(https://arxiv.org/abs/2611.16378):
+
+1. **Freeze the candidate.** `FrozenCandidate` snapshots the exact
+   bullets under audit, with a fingerprint. The text that gets
+   adopted is byte-for-byte the text that was audited.
+2. **Audit on fresh paired cases.** `run_audit` scores the same fresh
+   cases twice — with the current playbook and with the candidate
+   playbook — and judges the paired scores. Cases the candidate was
+   learned from are refused outright (`prior_case_ids`).
+3. **Require real improvement.** Adoption needs a mean paired gain of
+   at least `min_improvement` on the primary objective *and* a
+   Hoeffding lower confidence bound above zero. The bound is
+   deliberately conservative: with few audit cases it stays wide and
+   the gate refuses. A gate that passes on three cases is not a gate.
+4. **Protect declared capabilities.** Each declared capability's mean
+   paired change must stay within `non_inferiority_margin` of the
+   baseline, so a gain on the main objective cannot hide a regression
+   elsewhere.
+5. **Roll out in a bounded canary.** An adopted candidate reaches a
+   fraction of cases first (default 10% → 50% → 100%, assigned
+   deterministically by case id), so a bad adoption meets a tenth of
+   traffic before it meets all of it.
+
+```python
+from ace_in_a_box import (
+    CanaryRollout, CaseScore, FrozenCandidate, run_audit,
+)
+
+frozen = FrozenCandidate.from_candidates(candidates)
+
+def runner(playbook, case):
+    outcome = run_my_agent(playbook, case)      # your harness
+    return CaseScore(primary=outcome.score,
+                     capabilities={"guard": outcome.guard_score})
+
+decision = run_audit(playbook, frozen, fresh_cases, runner,
+                     prior_case_ids=learned_from_ids)
+if decision.adopted:
+    curator.adopt(frozen, decision)  # raises unless the decision is
+                                     # ADOPT *for this exact text*
+    rollout = CanaryRollout()
+    live = rollout.playbook_for(case_id, playbook,
+                                build_candidate_playbook(playbook, frozen))
+```
+
+The gate judges the scores it is given; it cannot verify that the
+runner really ran fresh cases, that the scores are honest, or that
+the audit distribution matches production. Those are the caller's
+responsibility — the same conditions EGE's own guarantees are
+conditional on. And the capability check is mean-based, not
+bound-based, on purpose: at realistic audit sizes a Hoeffding bound
+is so wide it would veto every adoption, including ones where
+capabilities held exactly steady. The per-capability bounds are still
+reported in the decision, so the evidence stays visible.
+
 ## CLI
 
 The `ace` command (or `python -m ace_in_a_box`) manages a playbook file
@@ -244,8 +308,9 @@ $ python -m pytest
 ```
 
 The suite (curator ops, similarity merging, prune/eviction, Markdown +
-JSON round-trips, budget rendering, reflector with a fake LLM, CLI smoke
-tests) runs fully offline.
+JSON round-trips, budget rendering, reflector with a fake LLM,
+adoption-gate audits and canary rollout, CLI smoke tests) runs fully
+offline.
 
 ## Design notes
 
@@ -279,6 +344,12 @@ tests) runs fully offline.
   before integration in serious use — and for trace-derived candidates
   it is enforced for quarantined ones (see "Trace content is
   untrusted" above).
+- **The adoption gate trusts its audit.** Its statistical bar (a
+  Hoeffding bound on paired deltas) is only as good as the freshness
+  of the audit cases and the honesty of the scores — both are the
+  caller's responsibility, and the gate cannot check either. Treat a
+  passed gate as "the evidence cleared the bar", not as proof the
+  update is safe.
 
 ## Build your own
 
@@ -300,8 +371,12 @@ following into an LLM and it should produce a closely similar project:
 > plain, inspectable data, so a human can read exactly what the agent
 > has learned and why. Ship a rule-based reflector that works with no
 > model call at all, an optional pluggable LLM callable for richer
-> distillation, and a monitor-holdout discipline so the playbook is
-> never scored against the same ruler it trained on.
+> distillation, a monitor-holdout discipline so the playbook is
+> never scored against the same ruler it trained on, and an
+> evidence-governed adoption gate so a candidate update must prove
+> itself on fresh paired cases — real improvement on the primary
+> objective, no regression on declared capabilities — before it
+> lands, rolling out through a bounded canary.
 
 ## License
 
